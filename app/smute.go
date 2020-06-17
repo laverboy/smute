@@ -17,6 +17,8 @@ func CLI(args []string) int {
 	var app app
 	err := app.fromArgs(args)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "usage error: %v\n", err)
+		fmt.Println("usage: smute github_repo [repo_sub_directory] output_directory")
 		return 2
 	}
 	if err = app.run(); err != nil {
@@ -68,9 +70,7 @@ func (a *app) run() error {
 	}
 
 	if !validTemplate(tmpDir, a.repoDir) {
-		if err != nil {
-			return errors.New("does not look like a valid template")
-		}
+		return errors.New("does not look like a valid template directory")
 	}
 
 	placeholders, err := loadPlaceholders(filepath.Join(tmpDir, a.repoDir))
