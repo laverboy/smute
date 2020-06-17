@@ -11,11 +11,12 @@ import (
 	"strings"
 )
 
-type Args map[string]string
+type PlaceholdersWithValues map[string]string
 
 func main() {
 	templateRepo := "github.com/laverboy/smute-templates"
 	subDir := "basic"
+	outputDir := "/tmp/basic"
 
 	dir, err := ioutil.TempDir("", "smute-clone")
 	CheckIfError(err)
@@ -31,23 +32,22 @@ func main() {
 		CheckIfError(errors.New("does not look like a valid template"))
 	}
 
-	args, err := keysFileToArgs(filepath.Join(dir, subDir))
+	placeholders, err := loadPlaceholders(filepath.Join(dir, subDir))
 	CheckIfError(err)
 
-	promptForArgValues(args)
+	promptForPlaceholderValues(placeholders)
 
-	err = filepath.Walk(filepath.Join(dir, subDir), findNReplace(args, filepath.Join(dir, subDir), "/tmp/basic"))
+	err = filepath.Walk(filepath.Join(dir, subDir), findNReplace(placeholders, filepath.Join(dir, subDir), outputDir))
 	CheckIfError(err)
 }
 
-func findNReplace(args Args, dir, newPath string) func(path string, info os.FileInfo, err error) error {
+func findNReplace(placeholders PlaceholdersWithValues, tempDir, outputDir string) func(path string, info os.FileInfo, err error) error {
 	return func(path string, info os.FileInfo, err error) error {
-		newPathRoot := strings.ReplaceAll(path, dir, newPath)
-		fmt.Println(path, dir, newPath, newPathRoot)
+		newOutputPath := strings.ReplaceAll(path, tempDir, outputDir)
 
 		// If directory, create new, then move on
 		if info.IsDir() {
-			err = os.MkdirAll(newPathRoot, os.ModePerm)
+			err = os.MkdirAll(newOutputPath, os.ModePerm)
 			if err != nil {
 				return err
 			}
@@ -72,12 +72,12 @@ func findNReplace(args Args, dir, newPath string) func(path string, info os.File
 		}
 
 		newContents := string(read)
-		for k, v := range args {
+		for k, v := range placeholders {
 			placeholder := "<<" + k + ">>"
 			newContents = strings.Replace(newContents, placeholder, v, -1)
 		}
 
-		if err := ioutil.WriteFile(newPathRoot, []byte(newContents), info.Mode()); err != nil {
+		if err := ioutil.WriteFile(newOutputPath, []byte(newContents), info.Mode()); err != nil {
 			return err
 		}
 
@@ -85,7 +85,7 @@ func findNReplace(args Args, dir, newPath string) func(path string, info os.File
 	}
 }
 
-func promptForArgValues(a Args) {
+func promptForPlaceholderValues(a PlaceholdersWithValues) {
 	reader := bufio.NewReader(os.Stdin)
 	for key := range a {
 		fmt.Printf("%s: ", key)
@@ -98,9 +98,9 @@ func validTemplate(dir, subdir string) bool {
 	return fileExists(filepath.Join(dir, subdir, "keys.txt"))
 }
 
-func keysFileToArgs(templateDir string) (Args, error) {
-	args := make(Args)
-	file, err := os.Open(filepath.Clean(templateDir + "/keys.txt"))
+func loadPlaceholders(templateDir string) (PlaceholdersWithValues, error) {
+	args := make(PlaceholdersWithValues)
+	file, err := os.Open(filepath.Join(templateDir, "keys.txt"))
 	if err != nil {
 		return nil, err
 	}
