@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 )
@@ -62,8 +64,17 @@ func (a *app) run() error {
 
 	defer os.RemoveAll(tmpDir)
 
+	url := a.templateRepo
+	if strings.HasPrefix(url, "github.com") {
+		url = "https://" + url
+	}
+
+	currentUser, _ := user.Current()
+	sshAuth, _ := ssh.NewPublicKeysFromFile("git", currentUser.HomeDir+"/.ssh/id_rsa", "")
 	_, err = git.PlainClone(tmpDir, false, &git.CloneOptions{
-		URL: "https://" + a.templateRepo,
+		URL:   url,
+		Auth:  sshAuth,
+		Depth: 1,
 	})
 	if err != nil {
 		return err
@@ -89,7 +100,9 @@ func (a *app) run() error {
 }
 
 func validRepo(repo string) bool {
-	return !strings.HasPrefix(repo, "https://github.com") || !strings.HasPrefix(repo, "github.com")
+	return strings.HasPrefix(repo, "https://github.com") ||
+		strings.HasPrefix(repo, "github.com") ||
+		strings.HasPrefix(repo, "git@github.com")
 }
 
 func findNReplace(placeholders PlaceholdersWithValues, tempDir, outputDir string) func(path string, info os.FileInfo, err error) error {
